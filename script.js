@@ -9,7 +9,7 @@ import {
 const VIDEO_DURATION = 15;        
 const AUDIO_START_OFFSET = 59.4;    
 const AUDIO_START_DELAY = 0;      
-const BLUR_AMOUNT = 12;           
+const BLUR_AMOUNT = 10;           
 const CAMERA_ZOOM = 1.0;          
 // ==========================================
 
@@ -45,7 +45,7 @@ let finalBlobUrl = null;
 let recordingInterval = null;
 let audioContext = null;
 let audioDest = null;
-let lastAiCheckTime = 0; // Untuk pencegah lag / patah-patah
+let lastAiCheckTime = 0;
 
 // --- Initialize AI Model ---
 async function initMediaPipe() {
@@ -102,13 +102,12 @@ btnStart.addEventListener('click', async () => {
     }
 
     try {
-        // PERBAIKAN ZOOM: Menggunakan aspectRatio 9:16 agar kamera langsung vertikal tanpa di-crop berlebihan
+        // Minta stream kamera resolusi tinggi agar tidak burik
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { 
                 facingMode: "user", 
-                aspectRatio: { ideal: 9 / 16 },
-                width: { ideal: 720 },
-                height: { ideal: 1280 }
+                width: { ideal: 1080, min: 720 },
+                height: { ideal: 1920, min: 1280 }
             },
             audio: false 
         });
@@ -124,9 +123,18 @@ btnStart.addEventListener('click', async () => {
         rawVideo.onloadedmetadata = () => {
             rawVideo.play();
             
-            // Set ukuran canvas pas HD Portrait
-            renderCanvas.width = 720;
-            renderCanvas.height = 1280;
+            // DINAMIS & HD: Sesuaikan ukuran canvas dengan video asli tapi dibatasi maksimal lebar 720px (720p HD) 
+            // agar gambar tajam jernih tapi tetap ringan anti patah-patah di HP.
+            let videoWidth = rawVideo.videoWidth || 720;
+            let videoHeight = rawVideo.videoHeight || 1280;
+            
+            if (videoWidth > 720) {
+                videoHeight = Math.round((720 / videoWidth) * videoHeight);
+                videoWidth = 720;
+            }
+
+            renderCanvas.width = videoWidth;
+            renderCanvas.height = videoHeight;
             
             isCameraActive = true;
             requestAnimationFrame(renderLoop);
@@ -153,14 +161,14 @@ function detectPeaceSign(landmarks) {
     return isIndexUp && isMiddleUp && isRingDown && isPinkyDown;
 }
 
-// --- Render Loop (Anti Patah-patah dengan Interval Waktu, Bukan Frame) ---
+// --- Render Loop (Sangat Ringan, AI Diatur 400ms Sekali agar Tidak Lag) ---
 function renderLoop() {
     if (!isCameraActive) return;
 
     const now = performance.now();
 
-    // AI hanya dicek tiap 150ms (~6 kali sedetik) agar HP tidak berat/lag, tapi blur tetap responsif
-    if (now - lastAiCheckTime > 150) {
+    // AI dicek tiap 400ms (cukup untuk gestur, tapi CPU HP dijamin santai & preview mulus 60 FPS)
+    if (now - lastAiCheckTime > 400) {
         lastAiCheckTime = now;
         if (rawVideo.readyState >= 2) {
             const results = handLandmarker.detectForVideo(rawVideo, now);
@@ -174,7 +182,6 @@ function renderLoop() {
     ctx.translate(renderCanvas.width, 0);
     ctx.scale(-1, 1);
 
-    // Gambar video full ke canvas tanpa crop ekstrem
     if (isPeaceSignActive) {
         ctx.filter = `blur(${BLUR_AMOUNT}px)`;
     } else {
@@ -226,7 +233,12 @@ btnRecord.addEventListener('click', () => {
 });
 
 function getBestMimeType() {
-    const types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+    const types = [
+        'video/webm;codecs=vp9,opus', 
+        'video/webm;codecs=vp8,opus', 
+        'video/webm', 
+        'video/mp4'
+    ];
     for (let t of types) {
         if (MediaRecorder.isTypeSupported(t)) return t;
     }
@@ -239,6 +251,7 @@ function startRecording() {
     btnRecord.classList.add('recording');
     btnRecord.style.pointerEvents = 'auto';
 
+    // Tangkap stream dari canvas dengan 30 FPS stabil
     const canvasStream = renderCanvas.captureStream(30);
     let finalStream = canvasStream;
 
@@ -254,10 +267,10 @@ function startRecording() {
         console.warn("Audio gabung gagal, rekam video saja.", e);
     }
 
-    // PERBAIKAN 360P: Bitrate diturunkan ke 3.5 Mbps (3500000) agar diterima encoder HP menjadi HD 720p mulus
+    // BITRATE 720p HD: 3 Mbps (3000000) agar hasil download tajam dan encoder HP tidak drop frame
     mediaRecorder = new MediaRecorder(finalStream, { 
         mimeType: getBestMimeType(),
-        videoBitsPerSecond: 3500000 
+        videoBitsPerSecond: 3000000 
     });
 
     mediaRecorder.ondataavailable = (e) => {
