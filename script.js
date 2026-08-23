@@ -4,13 +4,13 @@ import {
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
 // ==========================================
-// ⚙️ KONFIGURASI UTAMA (MUDAH DIUBAH)
+// ⚙️ KONFIGURASI UTAMA
 // ==========================================
-const VIDEO_DURATION = 15;        // Detik (Durasi maksimal rekaman)
-const AUDIO_START_OFFSET = 59.4;    // Detik (Mulai musik dari detik ke-10)
-const AUDIO_START_DELAY = 0;      // Detik (Jeda musik setelah rekaman mulai)
-const BLUR_AMOUNT = 12;           // Pixel (Intensitas efek blur)
-const CAMERA_ZOOM = 1.0;          // Atur ke 0.5 jika ingin mencoba sudut lebih luas (ultra-wide / zoom-out)
+const VIDEO_DURATION = 15;        
+const AUDIO_START_OFFSET = 59.4;    
+const AUDIO_START_DELAY = 0;      
+const BLUR_AMOUNT = 12;           
+const CAMERA_ZOOM = 1.0;          
 // ==========================================
 
 // --- UI Elements ---
@@ -45,8 +45,7 @@ let finalBlobUrl = null;
 let recordingInterval = null;
 let audioContext = null;
 let audioDest = null;
-let lastVideoTime = -1;
-let frameCount = 0;
+let lastAiCheckTime = 0; // Untuk pencegah lag / patah-patah
 
 // --- Initialize AI Model ---
 async function initMediaPipe() {
@@ -103,31 +102,29 @@ btnStart.addEventListener('click', async () => {
     }
 
     try {
-        // Minta resolusi tinggi portrait (720x1280)
+        // PERBAIKAN ZOOM: Menggunakan aspectRatio 9:16 agar kamera langsung vertikal tanpa di-crop berlebihan
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { 
                 facingMode: "user", 
-                width: { ideal: 720 }, 
-                height: { ideal: 1280 } 
+                aspectRatio: { ideal: 9 / 16 },
+                width: { ideal: 720 },
+                height: { ideal: 1280 }
             },
             audio: false 
         });
         
         rawVideo.srcObject = stream;
         
-        // Coba terapkan zoom/wide-angle jika didukung hardware HP
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
         if (capabilities.zoom) {
-            track.applyConstraints({ advanced: [{ zoom: CAMERA_ZOOM }] }).catch(err => {
-                console.log("Zoom level tidak didukung penuh oleh browser/perangkat ini.");
-            });
+            track.applyConstraints({ advanced: [{ zoom: CAMERA_ZOOM }] }).catch(() => {});
         }
 
         rawVideo.onloadedmetadata = () => {
             rawVideo.play();
             
-            // KUNCI KANVAS KE PORTRAIT HD (720x1280) - Menjamin hasil download tidak miring/landscape
+            // Set ukuran canvas pas HD Portrait
             renderCanvas.width = 720;
             renderCanvas.height = 1280;
             
@@ -156,44 +153,35 @@ function detectPeaceSign(landmarks) {
     return isIndexUp && isMiddleUp && isRingDown && isPinkyDown;
 }
 
-// --- Render Loop dengan Auto-Crop Cover (Portrait Fix) ---
+// --- Render Loop (Anti Patah-patah dengan Interval Waktu, Bukan Frame) ---
 function renderLoop() {
     if (!isCameraActive) return;
 
-    frameCount++;
+    const now = performance.now();
 
-    // Throttle AI tiap 2 frame sekali agar tidak patah-patah (lag)
-    if (frameCount % 2 === 0 && rawVideo.currentTime !== lastVideoTime) {
-        lastVideoTime = rawVideo.currentTime;
-        const results = handLandmarker.detectForVideo(rawVideo, performance.now());
-        isPeaceSignActive = detectPeaceSign(results.landmarks);
+    // AI hanya dicek tiap 150ms (~6 kali sedetik) agar HP tidak berat/lag, tapi blur tetap responsif
+    if (now - lastAiCheckTime > 150) {
+        lastAiCheckTime = now;
+        if (rawVideo.readyState >= 2) {
+            const results = handLandmarker.detectForVideo(rawVideo, now);
+            isPeaceSignActive = detectPeaceSign(results.landmarks);
+        }
     }
 
     ctx.save();
     
-    // Efek Mirroring Kamera Depan
+    // Mirroring kamera depan
     ctx.translate(renderCanvas.width, 0);
     ctx.scale(-1, 1);
 
-    // Algoritma Object-Fit Cover agar pas di Kanvas Portrait 720x1280 tanpa gepeng/miring
-    const vWidth = rawVideo.videoWidth || 720;
-    const vHeight = rawVideo.videoHeight || 1280;
-    const cWidth = renderCanvas.width;
-    const cHeight = renderCanvas.height;
-
-    const ratio = Math.max(cWidth / vWidth, cHeight / vHeight);
-    const newWidth = vWidth * ratio;
-    const newHeight = vHeight * ratio;
-    const x = (cWidth - newWidth) / 2;
-    const y = (cHeight - newHeight) / 2;
-
+    // Gambar video full ke canvas tanpa crop ekstrem
     if (isPeaceSignActive) {
         ctx.filter = `blur(${BLUR_AMOUNT}px)`;
     } else {
         ctx.filter = 'none';
     }
 
-    ctx.drawImage(rawVideo, x, y, newWidth, newHeight);
+    ctx.drawImage(rawVideo, 0, 0, renderCanvas.width, renderCanvas.height);
     ctx.restore();
 
     requestAnimationFrame(renderLoop);
@@ -266,10 +254,10 @@ function startRecording() {
         console.warn("Audio gabung gagal, rekam video saja.", e);
     }
 
-    // DISET KE 8 MBPS AGAR RESOLUSI TAJAM (TIDAK 360P)
+    // PERBAIKAN 360P: Bitrate diturunkan ke 3.5 Mbps (3500000) agar diterima encoder HP menjadi HD 720p mulus
     mediaRecorder = new MediaRecorder(finalStream, { 
         mimeType: getBestMimeType(),
-        videoBitsPerSecond: 8000000 
+        videoBitsPerSecond: 3500000 
     });
 
     mediaRecorder.ondataavailable = (e) => {
