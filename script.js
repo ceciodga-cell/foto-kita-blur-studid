@@ -59,14 +59,13 @@ async function initMediaPipe() {
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: {
                 modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                delegate: "GPU" // Coba GPU dulu
+                delegate: "GPU"
             },
             runningMode: "VIDEO",
             numHands: 1
         });
         return true;
     } catch (err) {
-        // Fallback ke CPU kalau HP gak support GPU buat AI
         try {
             const vision = await FilesetResolver.forVisionTasks(
                 "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
@@ -109,12 +108,13 @@ btnStart.addEventListener('click', async () => {
     }
 
     try {
-        // Minta kamera HP dengan preferensi tinggi
+        // FIX PORTRAIT: Minta kamera format vertikal (9:16) agar hasil rekaman/download tidak landscape
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { 
                 facingMode: "user", 
-                width: { ideal: 1280 },
-                height: { ideal: 720 } 
+                aspectRatio: { ideal: 9 / 16 },
+                width: { ideal: 720 },
+                height: { ideal: 1280 } 
             },
             audio: false 
         });
@@ -124,12 +124,11 @@ btnStart.addEventListener('click', async () => {
         rawVideo.onloadedmetadata = () => {
             rawVideo.play();
             
-            // KITA KUNCI UKURAN CANVAS KE 720x1280 (HD Portrait)
+            // KUNCI UKURAN CANVAS KE PORTRAIT HD (720x1280)
             renderCanvas.width = 720;
             renderCanvas.height = 1280;
 
-            // Atur ukuran canvas kecil untuk trik blur (5% dari ukuran asli)
-            // Ini bikin CPU HP nggak kerja keras sama sekali
+            // Atur ukuran canvas kecil untuk trik blur super ringan (5% dari ukuran asli)
             blurCanvas.width = renderCanvas.width * 0.05;
             blurCanvas.height = renderCanvas.height * 0.05;
             
@@ -151,7 +150,7 @@ function detectPeaceSign(landmarks) {
            (hand[16].y > hand[14].y) && (hand[20].y > hand[18].y);
 }
 
-// RUMUS OBJECT-FIT COVER: Agar tidak ngezoom berlebihan dan pas di layar
+// RUMUS OBJECT-FIT COVER PORTRAIT
 function drawVideoCover(context, video, targetW, targetH) {
     const vidW = video.videoWidth;
     const vidH = video.videoHeight;
@@ -161,13 +160,13 @@ function drawVideoCover(context, video, targetW, targetH) {
     context.drawImage(video, 0, 0, vidW, vidH, x, y, vidW * scale, vidH * scale);
 }
 
-// --- Render Loop (Bebas Lag & CPU Friendly) ---
+// --- Render Loop ---
 function renderLoop() {
     if (!isCameraActive) return;
 
     const now = performance.now();
     
-    // AI cuma mikir tiap 250ms (~4x sedetik) biar HP lu gak panas
+    // AI cek tiap 250ms agar tidak berat
     if (now - lastAiCheckTime > 250) {
         lastAiCheckTime = now;
         if (rawVideo.readyState >= 2) {
@@ -176,25 +175,19 @@ function renderLoop() {
         }
     }
 
-    // Bersihkan canvas
     ctx.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
 
     if (isPeaceSignActive) {
-        // TRIK BLUR 1000x LEBIH CEPAT DARI ctx.filter
-        
-        // 1. Gambar video ke canvas kecil
+        // TRIK BLUR RINGAN
         blurCtx.save();
         blurCtx.translate(blurCanvas.width, 0);
         blurCtx.scale(-1, 1); // Mirror
         drawVideoCover(blurCtx, rawVideo, blurCanvas.width, blurCanvas.height);
         blurCtx.restore();
 
-        // 2. Gambar canvas kecil ke canvas besar (Otomatis jadi blur karena pecah/tertarik)
-        ctx.imageSmoothingEnabled = true; // Bikin blur jadi halus
+        ctx.imageSmoothingEnabled = true;
         ctx.drawImage(blurCanvas, 0, 0, blurCanvas.width, blurCanvas.height, 0, 0, renderCanvas.width, renderCanvas.height);
-        
     } else {
-        // GAMBAR NORMAL
         ctx.save();
         ctx.translate(renderCanvas.width, 0);
         ctx.scale(-1, 1); // Mirror
@@ -259,10 +252,9 @@ function startRecording() {
         if (audioTrack) finalStream = new MediaStream([canvasStream.getVideoTracks()[0], audioTrack]);
     } catch(e) { console.warn("Audio gabung gagal."); }
 
-    // Bitrate tinggi 5 Mbps untuk menjaga kualitas 720p tanpa membuat rekaman lag
     mediaRecorder = new MediaRecorder(finalStream, { 
         mimeType: getBestMimeType(),
-        videoBitsPerSecond: 5000000 
+        videoBitsPerSecond: 4000000 
     });
 
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
