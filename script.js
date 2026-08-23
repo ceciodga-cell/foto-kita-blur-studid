@@ -1,4 +1,3 @@
-// Menggunakan versi 0.10.0 yang stabil tanpa tambahan path vision_bundle.js
 import {
     HandLandmarker,
     FilesetResolver
@@ -7,10 +6,11 @@ import {
 // ==========================================
 // ⚙️ KONFIGURASI UTAMA (MUDAH DIUBAH)
 // ==========================================
-const VIDEO_DURATION = 15;        
-const AUDIO_START_OFFSET = 59.4;    
-const AUDIO_START_DELAY = 0;      
-const BLUR_AMOUNT = 12;           
+const VIDEO_DURATION = 15;        // Detik (Durasi maksimal rekaman)
+const AUDIO_START_OFFSET = 59.4;    // Detik (Mulai musik dari detik ke-10)
+const AUDIO_START_DELAY = 0;      // Detik (Jeda musik setelah rekaman mulai)
+const BLUR_AMOUNT = 12;           // Pixel (Intensitas efek blur)
+const CAMERA_ZOOM = 0.5;          // Atur ke 0.5 jika ingin mencoba sudut lebih luas (ultra-wide / zoom-out)
 // ==========================================
 
 // --- UI Elements ---
@@ -46,11 +46,11 @@ let recordingInterval = null;
 let audioContext = null;
 let audioDest = null;
 let lastVideoTime = -1;
+let frameCount = 0;
 
-// --- Initialize AI Model (Dengan Fallback CPU) ---
+// --- Initialize AI Model ---
 async function initMediaPipe() {
     try {
-        // PENTING: Path wasm juga disesuaikan ke versi 0.10.0
         const vision = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
         );
@@ -65,7 +65,6 @@ async function initMediaPipe() {
                 numHands: 1
             });
         } catch (gpuError) {
-            console.warn("GPU gagal, beralih ke CPU...");
             handLandmarker = await HandLandmarker.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
@@ -78,22 +77,22 @@ async function initMediaPipe() {
         return true;
     } catch (err) {
         console.error("Gagal memuat AI MediaPipe:", err);
-        alert("Gagal memuat model AI. Pastikan internet jalan.");
+        alert("Gagal memuat model AI.");
         return false;
     }
 }
+
 // --- Navigation ---
 function showView(viewName) {
     Object.values(views).forEach(v => v.classList.add('hidden'));
     views[viewName].classList.remove('hidden');
 }
 
-// --- Start Button Logic (Request Permissions & Load) ---
+// --- Start Button Logic ---
 btnStart.addEventListener('click', async () => {
     btnStart.classList.add('hidden');
     loadingText.classList.remove('hidden');
 
-    // Init AI
     if (!handLandmarker) {
         const success = await initMediaPipe();
         if (!success) {
@@ -103,44 +102,51 @@ btnStart.addEventListener('click', async () => {
         }
     }
 
-    // Init Camera (9:16 Ratio for mobile)
     try {
+        // Minta resolusi tinggi portrait (720x1280)
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 1280 } },
-            audio: true // Request mic permission just in case, though we use local audio
+            video: { 
+                facingMode: "user", 
+                width: { ideal: 720 }, 
+                height: { ideal: 1280 } 
+            },
+            audio: false 
         });
+        
         rawVideo.srcObject = stream;
         
+        // Coba terapkan zoom/wide-angle jika didukung hardware HP
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if (capabilities.zoom) {
+            track.applyConstraints({ advanced: [{ zoom: CAMERA_ZOOM }] }).catch(err => {
+                console.log("Zoom level tidak didukung penuh oleh browser/perangkat ini.");
+            });
+        }
+
         rawVideo.onloadedmetadata = () => {
             rawVideo.play();
-            // Sesuaikan ukuran canvas dengan resolusi asli video kamera
-            renderCanvas.width = rawVideo.videoWidth;
-            renderCanvas.height = rawVideo.videoHeight;
+            
+            // KUNCI KANVAS KE PORTRAIT HD (720x1280) - Menjamin hasil download tidak miring/landscape
+            renderCanvas.width = 720;
+            renderCanvas.height = 1280;
+            
             isCameraActive = true;
-            
-            // Start Render Loop
             requestAnimationFrame(renderLoop);
-            
-            // Tampilkan Kamera UI
             showView('camera');
         };
     } catch (err) {
-        alert("Izin kamera diperlukan untuk menggunakan aplikasi ini.");
+        console.error("Kamera Error:", err);
+        alert("Tidak dapat mengakses kamera. Pastikan izin diberikan.");
         btnStart.classList.remove('hidden');
         loadingText.classList.add('hidden');
     }
 });
 
-// --- Deteksi V-Sign (✌🏼) Logika ---
+// --- Deteksi V-Sign ---
 function detectPeaceSign(landmarks) {
     if (!landmarks || landmarks.length === 0) return false;
     const hand = landmarks[0];
-    
-    // Landmark tips & pips
-    // Index: tip 8, pip 6
-    // Middle: tip 12, pip 10
-    // Ring: tip 16, pip 14
-    // Pinky: tip 20, pip 18
     
     const isIndexUp = hand[8].y < hand[6].y;
     const isMiddleUp = hand[12].y < hand[10].y;
@@ -150,53 +156,60 @@ function detectPeaceSign(landmarks) {
     return isIndexUp && isMiddleUp && isRingDown && isPinkyDown;
 }
 
-// --- Render Loop (Menggambar ke Canvas + Efek Blur) ---
+// --- Render Loop dengan Auto-Crop Cover (Portrait Fix) ---
 function renderLoop() {
     if (!isCameraActive) return;
 
-    // 1. Prediksi AI
-    let startTimeMs = performance.now();
-    if (rawVideo.currentTime !== lastVideoTime) {
+    frameCount++;
+
+    // Throttle AI tiap 2 frame sekali agar tidak patah-patah (lag)
+    if (frameCount % 2 === 0 && rawVideo.currentTime !== lastVideoTime) {
         lastVideoTime = rawVideo.currentTime;
-        const results = handLandmarker.detectForVideo(rawVideo, startTimeMs);
+        const results = handLandmarker.detectForVideo(rawVideo, performance.now());
         isPeaceSignActive = detectPeaceSign(results.landmarks);
     }
 
-    // 2. Gambar ke Canvas
     ctx.save();
     
-    // Mirroring kamera depan agar seperti cermin
+    // Efek Mirroring Kamera Depan
     ctx.translate(renderCanvas.width, 0);
     ctx.scale(-1, 1);
 
-    // Terapkan blur jika terdeteksi gesture
+    // Algoritma Object-Fit Cover agar pas di Kanvas Portrait 720x1280 tanpa gepeng/miring
+    const vWidth = rawVideo.videoWidth || 720;
+    const vHeight = rawVideo.videoHeight || 1280;
+    const cWidth = renderCanvas.width;
+    const cHeight = renderCanvas.height;
+
+    const ratio = Math.max(cWidth / vWidth, cHeight / vHeight);
+    const newWidth = vWidth * ratio;
+    const newHeight = vHeight * ratio;
+    const x = (cWidth - newWidth) / 2;
+    const y = (cHeight - newHeight) / 2;
+
     if (isPeaceSignActive) {
         ctx.filter = `blur(${BLUR_AMOUNT}px)`;
     } else {
         ctx.filter = 'none';
     }
 
-    ctx.drawImage(rawVideo, 0, 0, renderCanvas.width, renderCanvas.height);
+    ctx.drawImage(rawVideo, x, y, newWidth, newHeight);
     ctx.restore();
 
     requestAnimationFrame(renderLoop);
 }
 
-// --- Setup Audio Routing (Web Audio API) ---
+// --- Audio Routing ---
 function setupAudioRouting() {
     if (!audioContext) {
-        // Init Audio Context (Harus dilakukan setelah interaksi user)
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const audioSource = audioContext.createMediaElementSource(bgMusic);
         audioDest = audioContext.createMediaStreamDestination();
         
-        // Routing ke Stream Destinasi (Untuk direkam)
         audioSource.connect(audioDest);
-        // Routing ke Speaker (Untuk didengar user)
         audioSource.connect(audioContext.destination);
     }
-    // Resume context if suspended
-    if(audioContext.state === 'suspended') {
+    if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
 }
@@ -207,11 +220,10 @@ btnRecord.addEventListener('click', () => {
     
     setupAudioRouting();
 
-    // Mulai Countdown
     let count = 4;
     countdownDisplay.innerText = count;
     countdownDisplay.classList.remove('hidden');
-    btnRecord.style.pointerEvents = 'none'; // Disable klik
+    btnRecord.style.pointerEvents = 'none';
 
     const countInterval = setInterval(() => {
         count--;
@@ -237,13 +249,11 @@ function startRecording() {
     isRecording = true;
     recordedChunks = [];
     btnRecord.classList.add('recording');
-    btnRecord.style.pointerEvents = 'auto'; // Re-enable jika ingin manual stop (opsional)
+    btnRecord.style.pointerEvents = 'auto';
 
-    // 1. Ambil Stream dari Canvas (Ini membawa efek blur)
     const canvasStream = renderCanvas.captureStream(30);
     let finalStream = canvasStream;
 
-    // 2. Gabungkan dengan Audio Stream dari file mp3
     try {
         const audioTrack = audioDest.stream.getAudioTracks()[0];
         if (audioTrack) {
@@ -253,11 +263,14 @@ function startRecording() {
             ]);
         }
     } catch(e) {
-        console.warn("Gagal menggabungkan audio, merekam video saja.", e);
+        console.warn("Audio gabung gagal, rekam video saja.", e);
     }
 
-    // 3. Konfigurasi MediaRecorder
-    mediaRecorder = new MediaRecorder(finalStream, { mimeType: getBestMimeType() });
+    // DISET KE 8 MBPS AGAR RESOLUSI TAJAM (TIDAK 360P)
+    mediaRecorder = new MediaRecorder(finalStream, { 
+        mimeType: getBestMimeType(),
+        videoBitsPerSecond: 8000000 
+    });
 
     mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunks.push(e.data);
@@ -265,15 +278,13 @@ function startRecording() {
 
     mediaRecorder.onstop = finalizeVideo;
 
-    // 4. Mulai Rekam & Musik berdasarkan Config
     mediaRecorder.start();
     
     setTimeout(() => {
         bgMusic.currentTime = AUDIO_START_OFFSET;
-        bgMusic.play().catch(e => console.log("Lagu gagal diputar, pastikan file ada di assets/audio/music.mp3", e));
+        bgMusic.play().catch(e => console.log("Lagu tidak ada/gagal diputar", e));
     }, AUDIO_START_DELAY * 1000);
 
-    // 5. UI Timer & Auto Stop
     timerDisplay.classList.remove('hidden');
     let elapsed = 0;
     timerDisplay.innerText = `00:00`;
@@ -294,7 +305,7 @@ function stopRecording() {
     isRecording = false;
     clearInterval(recordingInterval);
     
-    mediaRecorder.stop(); // memicu mediaRecorder.onstop
+    mediaRecorder.stop();
     bgMusic.pause();
     bgMusic.currentTime = 0;
     
@@ -303,12 +314,10 @@ function stopRecording() {
 }
 
 function finalizeVideo() {
-    // Buat file Blob dari chunk yang direkam
     const blob = new Blob(recordedChunks, { type: getBestMimeType() || 'video/webm' });
     if (finalBlobUrl) URL.revokeObjectURL(finalBlobUrl);
     finalBlobUrl = URL.createObjectURL(blob);
 
-    // Tampilkan di Halaman Hasil
     resultVideo.src = finalBlobUrl;
     showView('result');
 }
@@ -319,13 +328,12 @@ btnDownload.addEventListener('click', () => {
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = finalBlobUrl;
-    a.download = `StudioMini_Video_${new Date().getTime()}.webm`; // Fallback ext
+    a.download = `StudioMini_Video_${new Date().getTime()}.webm`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
 });
 
 btnRetake.addEventListener('click', () => {
-    // Kembali ke kamera
     showView('camera');
 });
