@@ -10,7 +10,7 @@ const VIDEO_DURATION = 15;
 const AUDIO_START_OFFSET = 59.4;    
 const AUDIO_START_DELAY = 0;      
 const BLUR_AMOUNT = 12;           
-const CAMERA_ZOOM = 1.0;          
+const CAMERA_ZOOM = 0.5;          
 // ==========================================
 
 // --- UI Elements ---
