@@ -9,7 +9,6 @@ import {
 const VIDEO_DURATION = 15;        
 const AUDIO_START_OFFSET = 59.4;    
 const AUDIO_START_DELAY = 0;      
-const BLUR_AMOUNT = 10;           
 const CAMERA_ZOOM = 1.0;          
 // ==========================================
 
@@ -47,23 +46,31 @@ let audioContext = null;
 let audioDest = null;
 let lastAiCheckTime = 0;
 
+// --- DOWNSAMPLING HACK (Trik Blur Super Ringan) ---
+const blurCanvas = document.createElement('canvas');
+const blurCtx = blurCanvas.getContext('2d');
+
 // --- Initialize AI Model ---
 async function initMediaPipe() {
     try {
         const vision = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
         );
-        
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                delegate: "GPU" // Coba GPU dulu
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+        });
+        return true;
+    } catch (err) {
+        // Fallback ke CPU kalau HP gak support GPU buat AI
         try {
-            handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                numHands: 1
-            });
-        } catch (gpuError) {
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+            );
             handLandmarker = await HandLandmarker.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
@@ -72,12 +79,12 @@ async function initMediaPipe() {
                 runningMode: "VIDEO",
                 numHands: 1
             });
+            return true;
+        } catch (cpuErr) {
+            console.error("AI Error:", cpuErr);
+            alert("Gagal memuat model AI.");
+            return false;
         }
-        return true;
-    } catch (err) {
-        console.error("Gagal memuat AI MediaPipe:", err);
-        alert("Gagal memuat model AI.");
-        return false;
     }
 }
 
@@ -102,73 +109,66 @@ btnStart.addEventListener('click', async () => {
     }
 
     try {
-        // Minta stream kamera resolusi tinggi agar tidak burik
+        // Minta kamera HP dengan preferensi tinggi
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { 
                 facingMode: "user", 
-                width: { ideal: 1080, min: 720 },
-                height: { ideal: 1920, min: 1280 }
+                width: { ideal: 1280 },
+                height: { ideal: 720 } 
             },
             audio: false 
         });
         
         rawVideo.srcObject = stream;
         
-        const track = stream.getVideoTracks()[0];
-        const capabilities = track.getCapabilities();
-        if (capabilities.zoom) {
-            track.applyConstraints({ advanced: [{ zoom: CAMERA_ZOOM }] }).catch(() => {});
-        }
-
         rawVideo.onloadedmetadata = () => {
             rawVideo.play();
             
-            // DINAMIS & HD: Sesuaikan ukuran canvas dengan video asli tapi dibatasi maksimal lebar 720px (720p HD) 
-            // agar gambar tajam jernih tapi tetap ringan anti patah-patah di HP.
-            let videoWidth = rawVideo.videoWidth || 720;
-            let videoHeight = rawVideo.videoHeight || 1280;
-            
-            if (videoWidth > 720) {
-                videoHeight = Math.round((720 / videoWidth) * videoHeight);
-                videoWidth = 720;
-            }
+            // KITA KUNCI UKURAN CANVAS KE 720x1280 (HD Portrait)
+            renderCanvas.width = 720;
+            renderCanvas.height = 1280;
 
-            renderCanvas.width = videoWidth;
-            renderCanvas.height = videoHeight;
+            // Atur ukuran canvas kecil untuk trik blur (5% dari ukuran asli)
+            // Ini bikin CPU HP nggak kerja keras sama sekali
+            blurCanvas.width = renderCanvas.width * 0.05;
+            blurCanvas.height = renderCanvas.height * 0.05;
             
             isCameraActive = true;
             requestAnimationFrame(renderLoop);
             showView('camera');
         };
     } catch (err) {
-        console.error("Kamera Error:", err);
-        alert("Tidak dapat mengakses kamera. Pastikan izin diberikan.");
+        alert("Tidak dapat mengakses kamera.");
         btnStart.classList.remove('hidden');
         loadingText.classList.add('hidden');
     }
 });
 
-// --- Deteksi V-Sign ---
 function detectPeaceSign(landmarks) {
     if (!landmarks || landmarks.length === 0) return false;
     const hand = landmarks[0];
-    
-    const isIndexUp = hand[8].y < hand[6].y;
-    const isMiddleUp = hand[12].y < hand[10].y;
-    const isRingDown = hand[16].y > hand[14].y;
-    const isPinkyDown = hand[20].y > hand[18].y;
-
-    return isIndexUp && isMiddleUp && isRingDown && isPinkyDown;
+    return (hand[8].y < hand[6].y) && (hand[12].y < hand[10].y) && 
+           (hand[16].y > hand[14].y) && (hand[20].y > hand[18].y);
 }
 
-// --- Render Loop (Sangat Ringan, AI Diatur 400ms Sekali agar Tidak Lag) ---
+// RUMUS OBJECT-FIT COVER: Agar tidak ngezoom berlebihan dan pas di layar
+function drawVideoCover(context, video, targetW, targetH) {
+    const vidW = video.videoWidth;
+    const vidH = video.videoHeight;
+    const scale = Math.max(targetW / vidW, targetH / vidH);
+    const x = (targetW - (vidW * scale)) / 2;
+    const y = (targetH - (vidH * scale)) / 2;
+    context.drawImage(video, 0, 0, vidW, vidH, x, y, vidW * scale, vidH * scale);
+}
+
+// --- Render Loop (Bebas Lag & CPU Friendly) ---
 function renderLoop() {
     if (!isCameraActive) return;
 
     const now = performance.now();
-
-    // AI dicek tiap 400ms (cukup untuk gestur, tapi CPU HP dijamin santai & preview mulus 60 FPS)
-    if (now - lastAiCheckTime > 400) {
+    
+    // AI cuma mikir tiap 250ms (~4x sedetik) biar HP lu gak panas
+    if (now - lastAiCheckTime > 250) {
         lastAiCheckTime = now;
         if (rawVideo.readyState >= 2) {
             const results = handLandmarker.detectForVideo(rawVideo, now);
@@ -176,20 +176,31 @@ function renderLoop() {
         }
     }
 
-    ctx.save();
-    
-    // Mirroring kamera depan
-    ctx.translate(renderCanvas.width, 0);
-    ctx.scale(-1, 1);
+    // Bersihkan canvas
+    ctx.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
 
     if (isPeaceSignActive) {
-        ctx.filter = `blur(${BLUR_AMOUNT}px)`;
-    } else {
-        ctx.filter = 'none';
-    }
+        // TRIK BLUR 1000x LEBIH CEPAT DARI ctx.filter
+        
+        // 1. Gambar video ke canvas kecil
+        blurCtx.save();
+        blurCtx.translate(blurCanvas.width, 0);
+        blurCtx.scale(-1, 1); // Mirror
+        drawVideoCover(blurCtx, rawVideo, blurCanvas.width, blurCanvas.height);
+        blurCtx.restore();
 
-    ctx.drawImage(rawVideo, 0, 0, renderCanvas.width, renderCanvas.height);
-    ctx.restore();
+        // 2. Gambar canvas kecil ke canvas besar (Otomatis jadi blur karena pecah/tertarik)
+        ctx.imageSmoothingEnabled = true; // Bikin blur jadi halus
+        ctx.drawImage(blurCanvas, 0, 0, blurCanvas.width, blurCanvas.height, 0, 0, renderCanvas.width, renderCanvas.height);
+        
+    } else {
+        // GAMBAR NORMAL
+        ctx.save();
+        ctx.translate(renderCanvas.width, 0);
+        ctx.scale(-1, 1); // Mirror
+        drawVideoCover(ctx, rawVideo, renderCanvas.width, renderCanvas.height);
+        ctx.restore();
+    }
 
     requestAnimationFrame(renderLoop);
 }
@@ -200,21 +211,16 @@ function setupAudioRouting() {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const audioSource = audioContext.createMediaElementSource(bgMusic);
         audioDest = audioContext.createMediaStreamDestination();
-        
         audioSource.connect(audioDest);
         audioSource.connect(audioContext.destination);
     }
-    if (audioContext.state === 'suspended') {
-        audioContext.resume();
-    }
+    if (audioContext.state === 'suspended') audioContext.resume();
 }
 
 // --- Recording Logic ---
 btnRecord.addEventListener('click', () => {
     if (isRecording) return;
-    
     setupAudioRouting();
-
     let count = 4;
     countdownDisplay.innerText = count;
     countdownDisplay.classList.remove('hidden');
@@ -233,12 +239,7 @@ btnRecord.addEventListener('click', () => {
 });
 
 function getBestMimeType() {
-    const types = [
-        'video/webm;codecs=vp9,opus', 
-        'video/webm;codecs=vp8,opus', 
-        'video/webm', 
-        'video/mp4'
-    ];
+    const types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
     for (let t of types) {
         if (MediaRecorder.isTypeSupported(t)) return t;
     }
@@ -251,39 +252,26 @@ function startRecording() {
     btnRecord.classList.add('recording');
     btnRecord.style.pointerEvents = 'auto';
 
-    // Tangkap stream dari canvas dengan 30 FPS stabil
     const canvasStream = renderCanvas.captureStream(30);
     let finalStream = canvasStream;
-
     try {
         const audioTrack = audioDest.stream.getAudioTracks()[0];
-        if (audioTrack) {
-            finalStream = new MediaStream([
-                canvasStream.getVideoTracks()[0], 
-                audioTrack
-            ]);
-        }
-    } catch(e) {
-        console.warn("Audio gabung gagal, rekam video saja.", e);
-    }
+        if (audioTrack) finalStream = new MediaStream([canvasStream.getVideoTracks()[0], audioTrack]);
+    } catch(e) { console.warn("Audio gabung gagal."); }
 
-    // BITRATE 720p HD: 3 Mbps (3000000) agar hasil download tajam dan encoder HP tidak drop frame
+    // Bitrate tinggi 5 Mbps untuk menjaga kualitas 720p tanpa membuat rekaman lag
     mediaRecorder = new MediaRecorder(finalStream, { 
         mimeType: getBestMimeType(),
-        videoBitsPerSecond: 3000000 
+        videoBitsPerSecond: 5000000 
     });
 
-    mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-    };
-
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = finalizeVideo;
-
     mediaRecorder.start();
     
     setTimeout(() => {
         bgMusic.currentTime = AUDIO_START_OFFSET;
-        bgMusic.play().catch(e => console.log("Lagu tidak ada/gagal diputar", e));
+        bgMusic.play().catch(e => console.log(e));
     }, AUDIO_START_DELAY * 1000);
 
     timerDisplay.classList.remove('hidden');
@@ -294,10 +282,7 @@ function startRecording() {
         elapsed++;
         let sec = elapsed < 10 ? `0${elapsed}` : elapsed;
         timerDisplay.innerText = `00:${sec}`;
-
-        if (elapsed >= VIDEO_DURATION) {
-            stopRecording();
-        }
+        if (elapsed >= VIDEO_DURATION) stopRecording();
     }, 1000);
 }
 
@@ -305,11 +290,9 @@ function stopRecording() {
     if (!isRecording) return;
     isRecording = false;
     clearInterval(recordingInterval);
-    
     mediaRecorder.stop();
     bgMusic.pause();
     bgMusic.currentTime = 0;
-    
     btnRecord.classList.remove('recording');
     timerDisplay.classList.add('hidden');
 }
@@ -318,18 +301,16 @@ function finalizeVideo() {
     const blob = new Blob(recordedChunks, { type: getBestMimeType() || 'video/webm' });
     if (finalBlobUrl) URL.revokeObjectURL(finalBlobUrl);
     finalBlobUrl = URL.createObjectURL(blob);
-
     resultVideo.src = finalBlobUrl;
     showView('result');
 }
 
-// --- Result Actions ---
 btnDownload.addEventListener('click', () => {
     if (!finalBlobUrl) return;
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = finalBlobUrl;
-    a.download = `StudioMini_Video_${new Date().getTime()}.webm`;
+    a.download = `StudioMini_${new Date().getTime()}.webm`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
