@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aesthetic Web Video Creator</title>
+    <!-- Google Fonts: Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background Textures & Blobs -->
+    <div class="bg-texture"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- 1. LANDING VIEW -->
+    <section id="landing-view" class="view-container active">
+        <div class="glass-panel text-center">
+            <h1>Studio Mini</h1>
+            <p>Buat video vertikal aesthetic langsung dari browsermu.</p>
+            <button id="btn-start" class="btn-primary">Mulai Sekarang</button>
+            <p id="loading-text" class="hidden">Memuat model AI kamera...</p>
+        </div>
+    </section>
+
+    <!-- 2. CAMERA VIEW -->
+    <section id="camera-view" class="view-container hidden">
+        <!-- Hidden elements for processing -->
+        <video id="raw-video" playsinline autoplay muted class="hidden"></video>
+        <!-- The Canvas acts as the actual view -->
+        <canvas id="render-canvas"></canvas>
+
+        <!-- Overlay UI -->
+        <div class="camera-ui">
+            <div class="tutorial-card">
+                <span>✌🏼 Tunjukkan jari 'V' ke kamera untuk efek blur</span>
+            </div>
+            
+            <div id="countdown-display" class="countdown hidden">4</div>
+            
+            <div class="bottom-controls">
+                <div id="recording-timer" class="timer glass-panel hidden">00:00</div>
+                <button id="btn-record" class="btn-record">
+                    <div class="record-inner"></div>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. RESULT VIEW -->
+    <section id="result-view" class="view-container hidden">
+        <div class="result-container text-center">
+            <h2>Video Kamu Siap! ✨</h2>
+            <div class="video-wrapper">
+                <video id="result-video" controls playsinline></video>
+            </div>
+            <div class="action-buttons">
+                <button id="btn-download" class="btn-primary">Download Video</button>
+                <button id="btn-retake" class="btn-secondary">Rekam Ulang</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Audio Element -->
+    <audio id="bg-music" src="foto_blur.mp3" crossorigin="anonymous"></audio>
+
+    <!-- MediaPipe Vision (ES Modules loaded via JS) -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>
