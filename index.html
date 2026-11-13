@@ -2,70 +2,581 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Aesthetic Web Video Creator</title>
-    <!-- Google Fonts: Poppins -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website System Terminal</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
-    <!-- Background Textures & Blobs -->
-    <div class="bg-texture"></div>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
+<body class="theme-default">
+    <!-- Background khusus untuk emoji -->
+    <div id="emoji-background" class="emoji-bg"></div>
+    <!-- Ambient / Background Overlay Elements -->
+    <div class="bg-hearts-container" id="bgHearts"></div>
+    <div class="bg-threat-overlay" id="bgThreat"></div>
+    <div class="bg-grid-pattern"></div>
+    <!-- Notifikasi Pencapaian & Overlay Transisi Meredup -->
+    <div id="secretToast" class="secret-toast" aria-live="polite"></div>
+    <div id="secretDimOverlay" class="secret-dim-overlay">
+        <div id="secretDimContent" class="secret-dim-content"></div>
+    </div>
+    <!-- Audio Musik Latar Khusus Jalur Rahasia (Scene 03 - 05) -->
+    <audio id="secretBgmAudio" loop preload="auto"></audio>
 
-    <!-- 1. LANDING VIEW -->
-    <section id="landing-view" class="view-container active">
-        <div class="glass-panel text-center">
-            <h1>Studio Mini</h1>
-            <p>Buat video vertikal aesthetic langsung dari browsermu.</p>
-            <button id="btn-start" class="btn-primary">Mulai Sekarang</button>
-            <p id="loading-text" class="hidden">Memuat model AI kamera...</p>
-        </div>
-    </section>
-
-    <!-- 2. CAMERA VIEW -->
-    <section id="camera-view" class="view-container hidden">
-        <!-- Hidden elements for processing -->
-        <video id="raw-video" playsinline autoplay muted class="hidden"></video>
-        <!-- The Canvas acts as the actual view -->
-        <canvas id="render-canvas"></canvas>
-
-        <!-- Overlay UI -->
-        <div class="camera-ui">
-            <div class="tutorial-card">
-                <span>✌🏼 Tunjukkan jari 'V' ke kamera untuk efek blur</span>
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Terminal Header -->
+        <header class="terminal-header">
+            <div class="terminal-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
             </div>
+            <div class="terminal-title" id="terminalTitle">SYSTEM // MODE: INITIALIZING</div>
+            <div class="mode-badge" id="modeBadge">SYS_BLUE</div>
+        </header>
+
+        <!-- Main Content Screen Area -->
+        <main class="terminal-body" id="terminalBody">
             
-            <div id="countdown-display" class="countdown hidden">4</div>
-            
-            <div class="bottom-controls">
-                <div id="recording-timer" class="timer glass-panel hidden">00:00</div>
-                <button id="btn-record" class="btn-record">
-                    <div class="record-inner"></div>
-                </button>
-            </div>
-        </div>
-    </section>
+            <!-- SCENE 1: INTRO UMUM & NAME INPUT -->
+            <section id="sceneIntroUmum" class="scene active">
+                <div class="console-box">
+                    <pre class="ascii-line">================================================</pre>
+                    <div class="typing-text-container" id="textIntroUmum">
+                        <p>Selamat datang di website pertama yang pernah gw buat.</p>
+                        <p>Sebelum lanjut, perlu diketahui bahwa website ini dibuat oleh seorang manusia yang baru belajar Python dan memiliki terlalu banyak waktu luang.</p>
+                        <p>Jadi jangan berisik kalau nanti:</p>
+                        <ul>
+                            <li>• Ada bug.</li>
+                            <li>• Ada fitur aneh.</li>
+                            <li>• Ada kata-kata kasar dari sistem.</li>
+                        </ul>
+                        <p>Dan satu hal lagi.</p>
+                        <p>Kalau gw jujur...</p>
+                        <p>Website ini sebenarnya dibuat untuk satu orang tertentu.</p>
+                        <p>Kalian yang lain cuma ikut numpang lihat hasilnya aja.</p>
+                        <p>Tapi karena server-nya terlanjur hidup, yaudah sekalian aja.</p>
+                        <p>Silakan lanjut.</p>
+                        <p>Semoga sistem gak menghina kalian secara personal.</p>
+                    </div>
+                    <pre class="ascii-line">================================================</pre>
+                </div>
 
-    <!-- 3. RESULT VIEW -->
-    <section id="result-view" class="view-container hidden">
-        <div class="result-container text-center">
-            <h2>Video Kamu Siap! ✨</h2>
-            <div class="video-wrapper">
-                <video id="result-video" controls playsinline></video>
-            </div>
-            <div class="action-buttons">
-                <button id="btn-download" class="btn-primary">Download Video</button>
-                <button id="btn-retake" class="btn-secondary">Rekam Ulang</button>
-            </div>
-        </div>
-    </section>
+                <div class="input-section" id="nameInputGroup">
+                    <label for="usernameInput" class="input-label">> Enter your name:</label>
+                    <div class="input-wrapper">
+                        <input type="text" id="usernameInput" placeholder="Ketik namamu di sini..." autocomplete="off">
+                        <button id="btnSubmitName" class="btn btn-primary">MASUK →</button>
+                    </div>
+                </div>
+            </section>
 
-    <!-- Audio Element -->
-    <audio id="bg-music" src="foto_blur.mp3" crossorigin="anonymous"></audio>
+            <!-- SCENE 2: INTRO MODE (DYNAMIC PACAR, TAMU, CREATOR, KACIU) -->
+            <section id="sceneIntroMode" class="scene">
+                <div class="console-box" id="modeConsoleBox">
+                    <div id="modeContentDisplay" class="mode-display-content"></div>
+                </div>
+                <div class="action-footer" id="modeActionFooter">
+                    <button id="btnNextFromIntro" class="btn btn-action" style="display:none;">Lanjut ke Menu Utama →</button>
+                </div>
+            </section>
 
-    <!-- MediaPipe Vision (ES Modules loaded via JS) -->
-    <script type="module" src="script.js"></script>
+            <!-- SCENE 3: MENU UTAMA -->
+            <section id="sceneMenuUtama" class="scene">
+                <div class="menu-box">
+                    <div class="menu-header">
+                        <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                        <h2>MENU UTAMA SISTEM</h2>
+                        <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                    </div>
+                    <div id="menuSecretBanner" class="menu-secret-banner" style="display:none;">
+                        <span>✨ ALL CHALLENGES COMPLETED</span>
+                        <button id="btnOpenSecretFromMenu" class="btn btn-primary btn-sm">Lanjutkan Perjalanan →</button>
+                    </div>
+                    <div class="menu-options">
+                        <button class="menu-btn" data-choice="1">
+                            <span class="opt-num">1.</span> <span class="opt-text">Cek Peluang PTN</span>
+                        </button>
+                        <button class="menu-btn" data-choice="2">
+                            <span class="opt-num">2.</span> <span class="opt-text">Game Ular Retro</span>
+                        </button>
+                        <button class="menu-btn" data-choice="3">
+                            <span class="opt-num">3.</span> <span class="opt-text">Tower Survival</span>
+                        </button>
+                        <button class="menu-btn" data-choice="4">
+                            <span class="opt-num">4.</span> <span class="opt-text">Lihat Progress</span>
+                        </button>
+                        <button class="menu-btn" data-choice="5">
+                            <span class="opt-num">5.</span> <span class="opt-text">Keluar</span>
+                        </button>
+                        <button class="menu-btn" data-choice="6">
+                            <span class="opt-num">6.</span> <span class="opt-text">Neon Breaker</span>
+                        </button>
+                    </div>
+                    <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                </div>
+            </section>
+
+            <!-- SCENE 4: GAME PTN -->
+            <section id="sceneGamePTN" class="scene">
+                <div class="ptn-container">
+                    <div class="ptn-header">
+                        <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                        <h2>🎓 PTN PERCENTAGE SYSTEM</h2>
+                        <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                    </div>
+
+                    <div id="ptnStepInput" class="ptn-step">
+                        <div id="ptnWelcomeText" class="ptn-welcome-box"></div>
+                        <div class="input-section">
+                            <label for="kampusInput" class="input-label">> Masukkan kampus impian kamu:</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="kampusInput" placeholder="Contoh: ITB, UI, UGM..." autocomplete="off">
+                                <button id="btnStartPTN" class="btn btn-primary">ANALISIS PELUANG</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="ptnStepLoading" class="ptn-step" style="display:none;">
+                        <div class="loading-box">
+                            <div class="spinner"></div>
+                            <div id="ptnLoadingLogs" class="loading-logs"></div>
+                        </div>
+                    </div>
+
+                    <div id="ptnStepResult" class="ptn-step" style="display:none;">
+                        <div class="result-card">
+                            <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                            <h3>🎓 ANALISIS SELESAI</h3>
+                            <pre class="ascii-line">════════════════════════════════════════════════</pre>
+                            <p class="user-label">Nama Pengguna: <strong id="resNama"></strong></p>
+                            
+                            <div class="eval-grid">
+                                <h4>📊 HASIL EVALUASI</h4>
+                                <div class="eval-item"><span>⚡ Kemampuan Akademik</span><strong id="resAkademik">0%</strong></div>
+                                <div class="eval-item"><span>🧠 Kemampuan Analitis</span><strong id="resAnalitis">0%</strong></div>
+                                <div class="eval-item"><span>📚 Konsistensi Belajar</span><strong id="resBelajar">0%</strong></div>
+                                <div class="eval-item"><span>🔥 Mental Saat Ujian</span><strong id="resMental">0%</strong></div>
+                            </div>
+
+                            <pre class="ascii-line">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</pre>
+                            
+                            <div class="chance-box">
+                                <p>🏫 Kampus Tujuan: <strong id="resKampus"></strong></p>
+                                <p>🎯 Peluang Masuk:</p>
+                                <div class="big-percentage" id="resPeluang">0%</div>
+                            </div>
+
+                            <pre class="ascii-line">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</pre>
+
+                            <div class="comment-box" id="resKomentar"></div>
+                        </div>
+                        <button id="btnPTNBack" class="btn btn-action">Kembali ke Menu Utama →</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SCENE 5: GAME ULAR RETRO -->
+            <section id="sceneGameUlar" class="scene">
+                <div class="snake-game-container">
+                    <div class="snake-header">
+                        <h2>🐍 GAME ULAR RETRO</h2>
+                        <div class="snake-scores">
+                            <span>Skor: <strong id="snakeScore">0</strong></span> | 
+                            <span>Tertinggi: <strong id="snakeHighScore">0</strong></span>
+                            <span id="snakeTargetBadge" class="secret-target-pill" style="display:none;"></span>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrapper">
+                        <canvas id="snakeCanvas" width="400" height="400"></canvas>
+                        <div id="snakeGameOverOverlay" class="snake-overlay" style="display:none;">
+                            <div class="overlay-msg" id="snakeGameOverMsg"></div>
+                            <button id="btnRestartSnake" class="btn btn-primary" style="margin-top:15px;">Main Lagi</button>
+                        </div>
+                    </div>
+
+                    <!-- Touch / On-screen Controls for Mobile -->
+                    <div class="mobile-controls">
+                        <button class="ctrl-btn up" id="ctrlUp">▲</button>
+                        <div class="ctrl-row">
+                            <button class="ctrl-btn left" id="ctrlLeft">◄</button>
+                            <button class="ctrl-btn down" id="ctrlDown">▼</button>
+                            <button class="ctrl-btn right" id="ctrlRight">►</button>
+                        </div>
+                    </div>
+
+                    <div class="snake-footer">
+                        <p>WASD / Arrow Key | Tombol Q untuk kembali</p>
+                        <button id="btnSnakeExit" class="btn btn-secondary">Kembali ke Menu (Q)</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SCENE 6: MINI GAME RAHASIA -->
+            <section id="sceneMiniGame" class="scene">
+                <div class="console-box">
+                    <pre class="ascii-line">🔒 MINI GAME MASIH DIKUNCI</pre>
+                    <br>
+                    <p>Creator belum selesai membuatnya.</p>
+                    <br>
+                    <p>Kemungkinan creator sedang:</p>
+                    <ul class="simple-list">
+                        <li>• Belajar coding.</li>
+                        <li>• Bingung.</li>
+                        <li>• Menatap layar.</li>
+                        <li>• Atau rebahan.</li>
+                    </ul>
+                </div>
+                <button id="btnMiniGameBack" class="btn btn-action">Kembali ke Menu Utama →</button>
+            </section>
+
+            <!-- SCENE 6B: TOWER SURVIVAL GAME -->
+            <section id="sceneTowerSurvival" class="scene">
+                <div class="ts-container">
+                    <!-- Top HUD -->
+                    <div class="ts-hud">
+                        <div class="ts-stat">
+                            <span class="ts-stat-label">FLOOR</span>
+                            <strong id="tsFloor">0</strong>
+                        </div>
+                        <div class="ts-stat">
+                            <span class="ts-stat-label">BEST</span>
+                            <strong id="tsBest">0</strong>
+                        </div>
+                        <div class="ts-stat">
+                            <span class="ts-stat-label" id="tsCurrencyLabel">COINS</span>
+                            <strong id="tsCoins">0</strong>
+                        </div>
+                        <div class="ts-hud-btns">
+                            <button id="btnTsSound" class="ts-icon-btn" title="Suara">🔊</button>
+                            <button id="btnTsPause" class="ts-icon-btn" title="Pause (Esc)">⏸</button>
+                        </div>
+                    </div>
+
+                    <!-- Power-up Active Indicator -->
+                    <div class="ts-target-strip">
+                        <span id="tsTargetBadge" class="secret-target-pill" style="display:none;"></span>
+                    </div>
+                    <div class="ts-powerup-strip" id="tsPowerupBar"></div>
+
+                    <!-- Game Canvas & Overlays -->
+                    <div class="ts-stage">
+                        <canvas id="towerCanvas" width="360" height="500"></canvas>
+
+                        <!-- Overlay Start + Upgrade -->
+                        <div id="tsOverlayMenu" class="ts-overlay active">
+                            <div class="ts-modal">
+                                <div class="ts-badge" id="tsThemeBadge">CYBER PROTOCOL ◈</div>
+                                <h2 class="ts-title" id="tsTitle">TOWER SURVIVAL</h2>
+                                <p class="ts-desc" id="tsDesc">Daki menara setinggi mungkin! Puncak rintangan terbuka di Lantai 25.</p>
+
+                                <div class="ts-mini-stats">
+                                    <span>🏆 Rekor: <strong id="tsMenuBest">0</strong> Lt</span>
+                                    <span><span id="tsMenuIcon">◈</span> Saldo: <strong id="tsMenuCoins">0</strong></span>
+                                </div>
+
+                                <div class="ts-shop-box">
+                                    <div class="ts-shop-header">⚡ UPGRADE SKILL</div>
+                                    <div class="ts-upg-row">
+                                        <div>
+                                            <strong>Jump Power</strong>
+                                            <small id="upgJumpLv">Lv. 1/5</small>
+                                        </div>
+                                        <button class="ts-upg-btn" id="btnUpgJump" data-upg="jump">40</button>
+                                    </div>
+                                    <div class="ts-upg-row">
+                                        <div>
+                                            <strong>Magnet Radius</strong>
+                                            <small id="upgMagnetLv">Lv. 1/5</small>
+                                        </div>
+                                        <button class="ts-upg-btn" id="btnUpgMagnet" data-upg="magnet">35</button>
+                                    </div>
+                                    <div class="ts-upg-row">
+                                        <div>
+                                            <strong>Shield Mastery</strong>
+                                            <small id="upgShieldLv">Lv. 1/5</small>
+                                        </div>
+                                        <button class="ts-upg-btn" id="btnUpgShield" data-upg="shield">50</button>
+                                    </div>
+                                </div>
+
+                                <button id="btnTsStart" class="btn btn-primary ts-full-btn">▶ MULAI MENDAKI</button>
+                                <button id="btnTsBackMain" class="btn btn-secondary ts-full-btn">← Kembali ke Menu Utama</button>
+                            </div>
+                        </div>
+
+                        <!-- Overlay Pause -->
+                        <div id="tsOverlayPause" class="ts-overlay">
+                            <div class="ts-modal ts-modal-sm">
+                                <h3 class="ts-title">⏸ PAUSED</h3>
+                                <p class="ts-desc">Permainan dijeda sementara.</p>
+                                <button id="btnTsResume" class="btn btn-primary ts-full-btn">▶ Lanjutkan</button>
+                                <button id="btnTsRestartPause" class="btn btn-secondary ts-full-btn">↻ Ulangi</button>
+                                <button id="btnTsQuitPause" class="btn btn-secondary ts-full-btn">← Menu Utama</button>
+                            </div>
+                        </div>
+
+                        <!-- Overlay Game Over -->
+                        <div id="tsOverlayGameOver" class="ts-overlay">
+                            <div class="ts-modal ts-modal-sm">
+                                <div id="tsNewBestBadge" class="ts-new-best" style="display:none;">✨ NEW PERSONAL BEST! ✨</div>
+                                <h3 class="ts-title" id="tsOverTitle">GAME OVER</h3>
+                                <p class="ts-desc" id="tsOverMsg">Kamu terjatuh dari menara!</p>
+
+                                <div class="ts-result-list">
+                                    <div><span>Lantai Dicapai</span><strong id="tsEndFloor">0</strong></div>
+                                    <div><span>Rekor Tertinggi</span><strong id="tsEndBest">0</strong></div>
+                                    <div><span>Didapat Sesi Ini</span><strong id="tsEndEarned">+0</strong></div>
+                                    <div><span>Total Saldo</span><strong id="tsEndTotal">0</strong></div>
+                                </div>
+
+                                <button id="btnTsRestart" class="btn btn-primary ts-full-btn">↻ Main Lagi</button>
+                                <button id="btnTsToShop" class="btn btn-secondary ts-full-btn">⚡ Upgrade & Menu Game</button>
+                                <button id="btnTsQuitOver" class="btn btn-secondary ts-full-btn">← Menu Utama</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Virtual Controls (Mobile) -->
+                    <div class="ts-mobile-pad">
+                        <div class="ts-pad-left">
+                            <button class="ts-pad-btn" id="tsBtnLeft">◀</button>
+                            <button class="ts-pad-btn" id="tsBtnRight">▶</button>
+                        </div>
+                        <button class="ts-pad-btn ts-pad-jump" id="tsBtnJump">JUMP ▲</button>
+                    </div>
+                    <div class="ts-hint">PC: A/D atau ◀/▶ Gerak • SPACE Lompat • ESC Pause</div>
+                </div>
+            </section>
+
+            <!-- SCENE 6C: NEON BREAKER ARCADE MINI GAME -->
+            <section id="sceneNeonBreaker" class="scene">
+                <div class="nb-container">
+                    <!-- HUD Bar -->
+                    <div class="nb-hud">
+                        <div class="nb-stat">
+                            <span class="nb-stat-label">SCORE</span>
+                            <strong id="nbScore">0</strong>
+                        </div>
+                        <div class="nb-stat">
+                            <span class="nb-stat-label">BEST</span>
+                            <strong id="nbBest">0</strong>
+                        </div>
+                        <div class="nb-stat">
+                            <span class="nb-stat-label">LIVES</span>
+                            <strong id="nbLives" class="nb-lives">♥ ♥ ♥</strong>
+                        </div>
+                        <div class="nb-hud-actions">
+                            <button id="btnNbMute" class="nb-icon-btn" title="Mute / Unmute">🔊</button>
+                            <button id="btnNbPause" class="nb-icon-btn" title="Pause (Esc)">⏸</button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas & Screens -->
+                    <div class="nb-stage" id="nbStage">
+                        <canvas id="neonBreakerCanvas" width="360" height="500"></canvas>
+                        <div id="nbLifeFlash" class="nb-life-flash"></div>
+
+                        <!-- 1. Main Menu Overlay -->
+                        <div id="nbMenuOverlay" class="nb-overlay active">
+                            <div class="nb-card">
+                                <div class="nb-chip">ARCADE PROTOCOL // 02</div>
+                                <h2 class="nb-logo">NEON BREAKER</h2>
+                                <p class="nb-sub">Hancurkan seluruh balok neon dan cetak skor tertinggi!</p>
+
+                                <div class="nb-best-panel">
+                                    <span>HIGH SCORE</span>
+                                    <strong id="nbMenuHighScore">0</strong>
+                                </div>
+
+                                <div class="nb-legend">
+                                    <span><i class="dot-c"></i> Normal +10</span>
+                                    <span><i class="dot-b"></i> Strong +25</span>
+                                    <span><i class="dot-g"></i> Bonus +50</span>
+                                </div>
+
+                                <div class="nb-controls-info">
+                                    <p>🖥 PC: Mouse / A-D / ◀ ▶ • SPACE Luncurkan</p>
+                                    <p>📱 HP: Geser & Ketuk Layar</p>
+                                </div>
+
+                                <button id="btnNbPlay" class="nb-btn nb-btn-primary">▶ PLAY</button>
+                                <button id="btnNbExitMain" class="nb-btn nb-btn-ghost">← Kembali ke Menu Utama</button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Pause Overlay -->
+                        <div id="nbPauseOverlay" class="nb-overlay">
+                            <div class="nb-card nb-card-sm">
+                                <h3 class="nb-logo nb-logo-sm">⏸ PAUSED</h3>
+                                <p class="nb-sub">Permainan dijeda sementara.</p>
+                                <button id="btnNbResume" class="nb-btn nb-btn-primary">▶ Resume</button>
+                                <button id="btnNbRestartPause" class="nb-btn nb-btn-secondary">↻ Restart</button>
+                                <button id="btnNbMenuPause" class="nb-btn nb-btn-ghost">Main Menu</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Game Over Overlay -->
+                        <div id="nbGameOverOverlay" class="nb-overlay">
+                            <div class="nb-card nb-card-sm">
+                                <div id="nbNewRecordBadge" class="nb-new-record" style="display:none;">✨ NEW RECORD! ✨</div>
+                                <h3 class="nb-logo nb-logo-sm nb-danger">GAME OVER</h3>
+                                <p class="nb-sub">Seluruh nyawa telah habis.</p>
+
+                                <div class="nb-score-summary">
+                                    <div><span>Final Score</span><strong id="nbFinalScore">0</strong></div>
+                                    <div><span>Best Score</span><strong id="nbOverBestScore">0</strong></div>
+                                </div>
+
+                                <button id="btnNbPlayAgain" class="nb-btn nb-btn-primary">↻ Play Again</button>
+                                <button id="btnNbMenuOver" class="nb-btn nb-btn-ghost">Main Menu</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="nb-footer-hint">
+                        SPACE / Klik / Tap untuk meluncurkan bola • ESC Pause
+                        <div style="margin-top:4px;">
+                            <span id="nbTargetBadge" class="secret-target-pill" style="display:none;"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SCENE 7: LIHAT PROGRESS -->
+            <section id="sceneProgress" class="scene">
+                <div class="progress-card">
+                    <pre class="ascii-line">════════════════════════════════</pre>
+                    <h3>📊 DATA PENGGUNA</h3>
+                    <pre class="ascii-line">════════════════════════════════</pre>
+                    <div class="prog-details">
+                        <p><span>Nama:</span> <strong id="progNama">-</strong></p>
+                        <p><span>Mode:</span> <strong id="progMode">-</strong></p>
+                        <p><span>High Score Ular:</span> <strong id="progScore">0</strong></p>
+                        <p><span>Rekor Tower Survival:</span> <strong id="progTowerFloor">Lantai 0</strong></p>
+                        <p><span id="progTowerCoinLabel">Koin Tower Survival:</span> <strong id="progTowerCoins">0</strong></p>
+                        <p><span>High Score Neon Breaker:</span> <strong id="progNeonBreaker">0</strong></p>
+                        <p id="progChallengeRow"><span>Tantangan Utama:</span> <strong id="progMiniGameCount">-</strong></p>
+                        <p id="progSecretRow"><span>Status Sistem:</span> <strong id="progHiddenReward">NORMAL</strong></p>
+                    </div>
+                    <pre class="ascii-line">════════════════════════════════</pre>
+                </div>
+                <button id="btnProgBack" class="btn btn-action">Kembali ke Menu Utama →</button>
+            </section>
+
+            <!-- SCENE 8: SHUTDOWN / KELUAR -->
+            <section id="sceneShutdown" class="scene">
+                <div class="console-box shutdown-box">
+                    <p class="shutdown-text" id="shutdownMsg"></p>
+                    <div class="power-off-icon">⏻</div>
+                </div>
+                <button id="btnRestartApp" class="btn btn-primary" style="margin-top: 20px;">Hidupkan Kembali Sistem</button>
+            </section>
+
+            <!-- SECRET SCENE 01: ALL CHALLENGES COMPLETED -->
+            <section id="sceneSecretAchievement" class="scene">
+                <div class="secret-ach-wrapper">
+                    <div class="secret-ach-header">
+                        <span class="secret-pill-badge">SYSTEM OVERRIDE // MILESTONE</span>
+                        <h2 class="secret-ach-title">All Challenges Completed</h2>
+                    </div>
+
+                    <div id="secretAchievementList" class="secret-ach-grid">
+                        <!-- Diisi secara dinamis oleh SecretFlow.openScene01() -->
+                    </div>
+
+                    <div id="secretAchievementHeadline" class="secret-ach-headline">
+                        <p class="secret-line-main">ALL CHALLENGES COMPLETED.</p>
+                        <p class="secret-line-sub">YOU HAVE REACHED THE LIMIT.</p>
+                    </div>
+
+                    <div class="secret-ach-actions">
+                        <button id="btnSecretScene1Continue" class="btn btn-action secret-continue-btn" style="display:none;">
+                            Continue →
+                        </button>
+                    </div>
+                </div>
+            </section>
+            <!-- SECRET SCENE 02: SYSTEM GOES OFFLINE -->
+            <section id="sceneSecretOffline" class="scene">
+                <div class="offline-stage">
+                    <div class="offline-status-bar">
+                        <span class="offline-dot"></span>
+                        <span id="offlineHeaderBadge">SYSTEM_STATE // OFFLINE</span>
+                    </div>
+
+                    <h2 class="offline-title glitch-subtle" data-text="Something Was Hidden Here">
+                        Something Was Hidden Here
+                    </h2>
+
+                    <div id="offlineLogStream" class="offline-log-stream" aria-live="polite">
+                        <!-- Urutan teks log sistem diisi bertahap oleh openScene02() -->
+                    </div>
+
+                    <div id="offlineFinalReveal" class="offline-final-reveal" style="display:none;">
+                        <p class="offline-remain-text">ONE LAST FEATURE REMAINS.</p>
+                        <button id="btnAccessSecretFile" class="btn offline-access-btn">
+                            [ ACCESS SECRET FILE ]
+                        </button>
+                    </div>
+                </div>
+            </section>
+            <!-- SECRET SCENE 03: A MESSAGE FROM THE CREATOR -->
+            <section id="sceneSecretLetter" class="scene">
+                <div class="letter-scene-stage">
+                    <!-- Top Bar: Badge & Kontrol Musik -->
+                    <div class="letter-top-bar">
+                        <span class="letter-badge" id="letterSceneBadge">PRIVATE MESSAGE // FOR YOU</span>
+                        <button id="btnSecretBgmToggle" class="btn-audio-pill" type="button" title="Aktifkan / Matikan Musik">
+                            🔊 Musik: ON
+                        </button>
+                    </div>
+
+                    <!-- Tahap 1: Amplop Tertutup -->
+                    <div id="digitalEnvelopeBox" class="digital-envelope-box" role="button" tabindex="0" aria-label="Buka Surat">
+                        <div class="env-glow"></div>
+                        <div class="env-card">
+                            <div class="env-flap"></div>
+                            <div class="env-pocket"></div>
+                            <div class="env-seal">♥</div>
+                            <div class="env-label-group">
+                                <p class="env-title" id="letterEnvelopeTitle">Before You Continue...</p>
+                                <span class="env-hint">Ketuk amplop untuk membuka surat</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tahap 2: Kertas Surat Digital (Typewriter) -->
+                    <div id="digitalLetterPaper" class="digital-letter-paper" style="display:none;">
+                        <div class="letter-paper-header">
+                            <h2 id="letterPaperTitle">Before You Continue...</h2>
+                            <button id="btnSkipLetterType" class="btn-skip-type" type="button">Percepat Teks ⏩</button>
+                        </div>
+
+                        <div class="letter-paper-body" id="letterPaperBody">
+                            <p class="letter-block letter-greeting" id="letterOutGreeting"></p>
+                            <p class="letter-block" id="letterOutStory"></p>
+                            <p class="letter-block" id="letterOutGratitude"></p>
+                            <p class="letter-block" id="letterOutPersonal"></p>
+                            <p class="letter-block letter-closing" id="letterOutClosing"></p>
+                        </div>
+
+                        <div id="letterFooterAction" class="letter-footer-action" style="display:none;">
+                            <button id="btnLetterNextToMuseum" class="btn btn-primary letter-next-btn">
+                                [ THERE'S SOMETHING ELSE ]
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="secret-config.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
